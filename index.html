@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Estela · carrera en directo</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Condensed:wght@600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f6f4ef;--ink:#16181d;--mute:#6b6f78;--card:#fff;--line:#e4e1d9;--hot:#ff4d1f;--hot2:#ffb21f;--ok:#1f9d55}
+@media(prefers-color-scheme:dark){:root{--bg:#121417;--ink:#f2f1ed;--mute:#9aa0aa;--card:#1c1f24;--line:#2c3038}}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Barlow,system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+h1,h2,.num{font-family:"Barlow Condensed",Barlow,sans-serif;font-weight:800;letter-spacing:.01em}
+h1{font-size:clamp(38px,9vw,56px);line-height:1;margin:0 0 8px}
+h2{font-size:24px;margin:0 0 8px}
+p{margin:0 0 12px}
+.hidden{display:none!important}
+button,.btn{font:600 16px Barlow,sans-serif;min-height:48px;padding:0 18px;border-radius:14px;border:0;background:var(--hot);color:#fff;cursor:pointer}
+button.alt{background:var(--card);color:var(--ink);border:1.5px solid var(--line)}
+button.dark{background:var(--ink);color:var(--bg)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--hot2);outline-offset:2px}
+input{font:16px Barlow,sans-serif;min-height:48px;padding:0 14px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);color:var(--ink);width:100%}
+label{display:block;font-weight:600;margin:14px 0 6px}
+.wrap{max-width:560px;margin:0 auto;padding:max(24px,env(safe-area-inset-top)) 18px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1 1 auto}
+.small{font-size:14px;color:var(--mute)}
+code{font-size:14px;background:var(--bg);padding:2px 6px;border-radius:6px;overflow-wrap:anywhere}
+/* portada */
+.hero{position:relative;height:190px;margin:8px 0 18px;border-radius:22px;overflow:hidden;background:linear-gradient(160deg,#ff6a3d,#ff4d1f 55%,#e2361a)}
+.hero svg{position:absolute;inset:0;width:100%;height:100%}
+.face-prev{width:72px;height:72px;border-radius:50%;object-fit:cover;background:var(--line);border:3px solid var(--hot)}
+/* mapa */
+.full{position:fixed;inset:0;display:flex;flex-direction:column}
+#map{flex:1;background:#dde3e6}
+.top{position:absolute;z-index:500;left:10px;right:10px;top:max(10px,env(safe-area-inset-top));display:flex;gap:10px;align-items:center;background:var(--card);border-radius:18px;padding:10px 12px;box-shadow:0 6px 24px rgba(0,0,0,.15)}
+.top img{width:44px;height:44px;border-radius:50%;object-fit:cover;background:var(--line)}
+.live{font-size:13px;font-weight:600;padding:3px 9px;border-radius:99px;background:var(--line);color:var(--mute);white-space:nowrap}
+.live.on{background:#ffe1d6;color:#c2300f}.live.on::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--hot);margin-right:6px;animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.25}}
+.panel{background:var(--card);border-top:1px solid var(--line);padding:12px 12px max(12px,env(safe-area-inset-bottom))}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;text-align:center;margin-bottom:10px}
+.stats div{background:var(--bg);border-radius:12px;padding:6px 2px}
+.stats .num{font-size:clamp(20px,5.5vw,30px);line-height:1.1;white-space:nowrap}
+.stats small{display:block;font-size:12px;color:var(--mute)}
+.quick{display:flex;gap:6px;overflow-x:auto;margin-bottom:8px}.quick button{flex:none;min-height:40px;font-size:15px}
+.cheerform{display:flex;gap:8px}.cheerform input{flex:1}
+.toast{position:fixed;z-index:900;left:50%;bottom:30%;transform:translateX(-50%);max-width:92vw;background:var(--hot);color:#fff;padding:18px 22px;border-radius:20px;font:800 clamp(24px,7vw,40px)/1.1 "Barlow Condensed",sans-serif;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.3);animation:pop .35s ease-out}
+.toast small{display:block;font:600 15px Barlow,sans-serif;opacity:.9;margin-bottom:4px}
+@keyframes pop{from{transform:translateX(-50%) scale(.6);opacity:0}}
+/* corredor */
+.big{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.big>div{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 12px}
+.big .num{font-size:clamp(34px,11vw,52px);line-height:1}
+.big small{color:var(--mute);font-weight:600}
+.big .wide{grid-column:1/-1;text-align:center}.big .wide .num{font-size:clamp(56px,18vw,88px)}
+#rmap{height:220px;border-radius:16px;overflow:hidden;margin-bottom:14px}
+.feed{margin:10px 0 0;padding:0;list-style:none;max-height:150px;overflow:auto}
+.feed li{padding:6px 0;border-bottom:1px solid var(--line);font-size:15px}
+/* monigote */
+.av{position:relative;width:56px;height:84px}
+.av .head{position:absolute;left:10px;top:0;width:36px;height:36px;border-radius:50%;border:3px solid #fff;background:var(--hot);object-fit:cover;box-shadow:0 2px 6px rgba(0,0,0,.35);display:grid;place-items:center;color:#fff;font:800 18px "Barlow Condensed",sans-serif;z-index:2}
+.av svg{position:absolute;left:0;top:30px;width:56px;height:54px;overflow:visible}
+.av.flip svg{transform:scaleX(-1)}
+.av .l1,.av .a2{transform-origin:28px 22px;animation:sw .5s infinite alternate ease-in-out}
+.av .l2,.av .a1{transform-origin:28px 22px;animation:sw .5s infinite alternate-reverse ease-in-out}
+.av .a1,.av .a2{transform-origin:28px 6px}
+.av.stop .l1,.av.stop .l2,.av.stop .a1,.av.stop .a2{animation:none}
+@keyframes sw{from{transform:rotate(-28deg)}to{transform:rotate(28deg)}}
+@media(prefers-reduced-motion:reduce){.av *{animation:none!important}.toast{animation:none}}
+.leaflet-div-icon{background:none;border:0}
+</style>
+</head>
+<body>
+
+<!-- PORTADA -->
+<section id="home" class="wrap hidden">
+  <div class="hero" aria-hidden="true">
+    <svg viewBox="0 0 400 190" preserveAspectRatio="xMidYMid slice">
+      <path d="M-10 150 C 60 60, 120 170, 190 100 S 300 40, 420 70" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="18" stroke-linecap="round"/>
+      <path d="M-10 150 C 60 60, 120 170, 190 100 S 300 40, 330 52" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-dasharray="1 14"/>
+      <circle cx="330" cy="52" r="20" fill="#fff"/><circle cx="330" cy="52" r="12" fill="#ff4d1f"/>
+    </svg>
+  </div>
+  <h1>Estela</h1>
+  <p>Comparte tu carrera en directo: tus amigos te ven moverte por el mapa y te mandan ánimos al móvil.</p>
+
+  <div class="card">
+    <h2>Voy a correr</h2>
+    <div class="row" style="align-items:center">
+      <img id="facePrev" class="face-prev" alt="" style="flex:none" src="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 72 72%22%3E%3Crect width=%2272%22 height=%2272%22 fill=%22%23e4e1d9%22/%3E%3Ccircle cx=%2236%22 cy=%2230%22 r=%2213%22 fill=%22%23b9b5ab%22/%3E%3Crect x=%2214%22 y=%2248%22 width=%2244%22 height=%2230%22 rx=%2214%22 fill=%22%23b9b5ab%22/%3E%3C/svg%3E">
+      <div><label for="faceIn" style="margin-top:0">Tu foto (para el monigote)</label><input id="faceIn" type="file" accept="image/*"></div>
+    </div>
+    <label for="nameIn">Nombre</label><input id="nameIn" placeholder="Ej. Dani" maxlength="24">
+    <label for="kgIn">Peso en kg (para estimar calorías)</label><input id="kgIn" type="number" inputmode="decimal" value="70" min="30" max="200">
+    <div style="margin-top:16px"><button id="createBtn" style="width:100%">Crear carrera</button></div>
+  </div>
+  <p class="small" style="margin-top:16px">¿Solo quieres ver cómo queda? <a href="?demo=1">Abre la demo</a>: un corredor simulado por el Campo Grande de Valladolid.</p>
+</section>
+
+<!-- CORREDOR -->
+<section id="runner" class="wrap hidden">
+  <div class="row" style="align-items:center;justify-content:space-between">
+    <h2 style="margin:0">Tu carrera</h2><span id="rLive" class="live" style="flex:none">Sin empezar</span>
+  </div>
+  <div class="big">
+    <div class="wide"><small>Tiempo</small><div id="rTime" class="num">0:00</div></div>
+    <div><small>Km</small><div id="rKm" class="num">0,00</div></div>
+    <div><small>Ritmo /km</small><div id="rPace" class="num">–</div></div>
+    <div><small>Kcal</small><div id="rKcal" class="num">0</div></div>
+    <div><small>Pulsaciones</small><div id="rHr" class="num">–</div></div>
+  </div>
+  <div class="row" style="margin-bottom:12px">
+    <button id="startBtn">Empezar</button>
+    <button id="pauseBtn" class="alt hidden">Pausar</button>
+    <button id="endBtn" class="dark hidden">Terminar</button>
+  </div>
+  <div id="rmap"></div>
+  <p id="gpsMsg" class="small">Antes de empezar, deja que el móvil encuentre señal GPS al aire libre.</p>
+
+  <div class="card" style="margin-bottom:12px">
+    <h2>Enlace para tus amigos</h2>
+    <p class="small">Mándales este enlace. Lo abren en el navegador, sin instalar nada.</p>
+    <div class="cheerform"><input id="shareUrl" readonly><button id="copyBtn" class="alt" style="flex:none">Copiar</button></div>
+  </div>
+  <div class="card" style="margin-bottom:12px">
+    <h2>Ánimos en el móvil y el reloj</h2>
+    <p class="small">Instala la app gratuita <b>ntfy</b> (Android o iPhone), pulsa «+» y suscríbete a este tema:</p>
+    <div class="cheerform"><input id="topicOut" readonly><button id="copyTopic" class="alt" style="flex:none">Copiar</button></div>
+    <p class="small" style="margin-top:8px">Cada ánimo te llegará como notificación. Si el reloj está emparejado con el móvil, también vibrará en la muñeca. Con esta pantalla abierta, además, se leen en voz alta por los auriculares.</p>
+    <ul id="rFeed" class="feed"></ul>
+  </div>
+  <div class="card">
+    <h2>Pulsómetro (opcional)</h2>
+    <p class="small">Funciona en Chrome para Android con una banda de pecho Bluetooth o un reloj que emita las pulsaciones (en Garmin: «Transmitir frecuencia cardiaca»).</p>
+    <button id="hrBtn" class="alt">Conectar pulsómetro</button>
+  </div>
+  <p class="small" style="margin-top:14px">Mantén esta pantalla abierta durante la carrera: si bloqueas el móvil, el navegador deja de enviar tu posición.</p>
+</section>
+
+<!-- ESPECTADOR -->
+<section id="watch" class="full hidden">
+  <div id="map"></div>
+  <div class="top">
+    <img id="wFace" alt="">
+    <div style="flex:1"><div id="wName" class="num" style="font-size:22px;line-height:1.1">Esperando…</div><div id="wAgo" class="small">Conectando</div></div>
+    <span id="wLive" class="live">Sin señal</span>
+  </div>
+  <div class="panel">
+    <div class="stats">
+      <div><span id="sTime" class="num">0:00</span><small>Tiempo</small></div>
+      <div><span id="sKm" class="num">0,00</span><small>Km</small></div>
+      <div><span id="sPace" class="num">–</span><small>Ritmo</small></div>
+      <div><span id="sKcal" class="num">0</span><small>Kcal</small></div>
+      <div><span id="sHr" class="num">–</span><small>Pulso</small></div>
+    </div>
+    <div class="quick" id="quick"></div>
+    <form id="cheerForm" class="cheerform">
+      <input id="fromIn" placeholder="Tu nombre" style="flex:0 0 32%" maxlength="20">
+      <input id="msgIn" placeholder="Escribe un ánimo…" maxlength="120">
+      <button style="flex:none">Enviar</button>
+    </form>
+  </div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+{
+const NTFY = 'https://ntfy.sh';
+const SEND_EVERY = 20000;   // ms entre envíos (límite gratuito de ntfy: ~250 mensajes/día)
+const SAMPLE_EVERY = 5000;  // ms entre puntos de la estela
+const $ = id => document.getElementById(id);
+const qs = new URLSearchParams(location.search);
+const store = { get(k, d) { try { return localStorage.getItem(k) ?? d } catch { return d } }, set(k, v) { try { localStorage.setItem(k, v) } catch {} } };
+
+// ---------- utilidades ----------
+const R = 6371000, rad = x => x * Math.PI / 180;
+function dist(a, b) { const dLat = rad(b[0] - a[0]), dLng = rad(b[1] - a[1]); const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a[0])) * Math.cos(rad(b[0])) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)) }
+const fmtTime = s => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = String(s % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}` };
+const fmtKm = m => (m / 1000).toFixed(2).replace('.', ',');
+const fmtPace = sPerKm => (!sPerKm || sPerKm > 1800 || sPerKm < 120) ? '–' : `${Math.floor(sPerKm / 60)}:${String(Math.round(sPerKm % 60)).padStart(2, '0')}`;
+const kcalOf = (m, kg) => Math.round(kg * m / 1000 * 1.036);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const rid = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => 'abcdefghjkmnpqrstuvwxyz23456789'[b % 31]).join('');
+
+async function publish(topic, message, extra = {}) {
+  // JSON al raíz de ntfy sin cabeceras: petición simple, sin preflight CORS
+  const r = await fetch(NTFY + '/', { method: 'POST', body: JSON.stringify({ topic, message, ...extra }) });
+  if (!r.ok) throw new Error('ntfy ' + r.status);
+}
+function subscribe(topic, since, onMsg) {
+  const es = new EventSource(`${NTFY}/${topic}/sse?since=${since}`);
+  es.onmessage = e => { try { const m = JSON.parse(e.data); if (m.event === 'message') onMsg(m) } catch {} };
+  return es;
+}
+function avatarIcon(face, name, moving, flip) {
+  const head = face ? `<img class="head" alt="" src="${esc(face)}">` : `<div class="head">${esc((name || '?')[0].toUpperCase())}</div>`;
+  return L.divIcon({ className: '', iconSize: [56, 84], iconAnchor: [28, 82], html:
+    `<div class="av ${moving ? '' : 'stop'} ${flip ? 'flip' : ''}">${head}<svg viewBox="0 0 56 54" fill="none" stroke="#16181d" stroke-width="5" stroke-linecap="round">
+      <line x1="28" y1="4" x2="28" y2="24"/><line class="a1" x1="28" y1="8" x2="16" y2="18"/><line class="a2" x1="28" y1="8" x2="40" y2="18"/>
+      <line class="l1" x1="28" y1="24" x2="20" y2="48"/><line class="l2" x1="28" y1="24" x2="36" y2="48"/>
+      <ellipse cx="28" cy="52" rx="14" ry="3" fill="rgba(0,0,0,.18)" stroke="none"/></svg></div>` });
+}
+function makeMap(el, center) {
+  const m = L.map(el, { zoomControl: false, attributionControl: true }).setView(center, 15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(m);
+  return m;
+}
+function toast(from, text) {
+  const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = `<small>📣 ${esc(from)}</small>${esc(text)}`;
+  document.body.appendChild(t); setTimeout(() => t.remove(), 5000);
+}
+
+// ---------- portada ----------
+function home() {
+  $('home').classList.remove('hidden');
+  let face = store.get('estela.face', '');
+  if (face) $('facePrev').src = face;
+  $('nameIn').value = store.get('estela.name', '');
+  $('kgIn').value = store.get('estela.kg', '70');
+  $('faceIn').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const img = await createImageBitmap(f); const S = 72, c = document.createElement('canvas'); c.width = c.height = S;
+    const k = Math.min(img.width, img.height); c.getContext('2d').drawImage(img, (img.width - k) / 2, (img.height - k) / 2, k, k, 0, 0, S, S);
+    let q = .75; do { face = c.toDataURL('image/jpeg', q); q -= .1 } while (face.length > 3200 && q > .2);
+    $('facePrev').src = face; store.set('estela.face', face);
+  };
+  $('createBtn').onclick = () => {
+    const name = $('nameIn').value.trim() || 'Corredor';
+    store.set('estela.name', name); store.set('estela.kg', $('kgIn').value || '70');
+    location.search = `?c=${rid()}&modo=corredor`;
+  };
+}
+
+// ---------- corredor ----------
+function runner(id) {
+  $('runner').classList.remove('hidden');
+  const name = store.get('estela.name', 'Corredor'), face = store.get('estela.face', ''), kg = +store.get('estela.kg', '70') || 70;
+  const share = `${location.origin}${location.pathname}?c=${id}`;
+  $('shareUrl').value = share; $('topicOut').value = `estela-${id}-animos`;
+  const copy = (btn, val) => btn.onclick = async () => { try { await navigator.clipboard.writeText(val); btn.textContent = 'Copiado' } catch { btn.textContent = 'Mantén pulsado' } setTimeout(() => btn.textContent = 'Copiar', 1800) };
+  copy($('copyBtn'), share); copy($('copyTopic'), `estela-${id}-animos`);
+
+  const map = makeMap('rmap', [41.6523, -4.7245]);
+  const line = L.polyline([], { color: '#ff4d1f', weight: 5 }).addTo(map); let me = null;
+  const st = { state: 'idle', start: 0, moving: 0, lastTick: 0, meters: 0, last: null, pts: [], buf: [], hr: null, recent: [] };
+  let watchId = null, wake = null;
+
+  const stats = () => {
+    const now = Date.now();
+    const el = st.moving + (st.state === 'run' ? now - st.lastTick : 0);
+    const w = st.recent.filter(p => now - p[2] < 60000);
+    const pace = w.length > 1 ? (() => { let d = 0; for (let i = 1; i < w.length; i++) d += dist(w[i - 1], w[i]); return d > 25 ? (w.at(-1)[2] - w[0][2]) / 1000 / (d / 1000) : 0 })() : 0;
+    return { el: el / 1000, m: st.meters, pace, kcal: kcalOf(st.meters, kg), hr: st.hr };
+  };
+  const render = () => { const s = stats(); $('rTime').textContent = fmtTime(s.el); $('rKm').textContent = fmtKm(s.m); $('rPace').textContent = fmtPace(s.pace); $('rKcal').textContent = s.kcal; $('rHr').textContent = s.hr ?? '–' };
+  setInterval(render, 1000);
+
+  const send = async (final) => {
+    const s = stats();
+    const body = JSON.stringify({ t: 'p', n: name, st: final ? 'fin' : st.state, el: Math.round(s.el), m: Math.round(s.m), pace: Math.round(s.pace), kcal: s.kcal, hr: s.hr, pts: st.buf.splice(0) });
+    try { await publish(`estela-${id}`, body); $('gpsMsg').textContent = `Enviado a las ${new Date().toLocaleTimeString('es-ES')}.` }
+    catch (e) { $('gpsMsg').textContent = 'No se pudo enviar (¿sin cobertura o límite de ntfy?). Se reintentará.' }
+  };
+  const sendProfile = () => publish(`estela-${id}`, JSON.stringify({ t: 'perfil', n: name, f: face })).catch(() => {});
+
+  const onPos = p => {
+    const { latitude: la, longitude: lo, accuracy: acc } = p.coords;
+    if (acc > 35) { $('gpsMsg').textContent = `Buscando mejor señal GPS (±${Math.round(acc)} m)…`; return }
+    const pt = [+la.toFixed(6), +lo.toFixed(6), Date.now()];
+    if (!me) { me = L.marker(pt, { icon: avatarIcon(face, name, false) }).addTo(map); map.setView(pt, 16) } else me.setLatLng(pt);
+    if (st.state !== 'run') return;
+    if (st.last) { const d = dist(st.last, pt); if (d < 3) return; if (d / ((pt[2] - st.last[2]) / 1000) > 12) return; st.meters += d }
+    st.last = pt; st.recent.push(pt); if (st.recent.length > 60) st.recent.shift();
+    if (!st.buf.length || pt[2] - st.buf.at(-1)[2] >= SAMPLE_EVERY) { st.buf.push(pt); line.addLatLng(pt) }
+    map.panTo(pt, { animate: true });
+  };
+  const startGps = () => {
+    if (!navigator.geolocation) { $('gpsMsg').textContent = 'Este navegador no da acceso al GPS.'; return }
+    watchId ??= navigator.geolocation.watchPosition(onPos, e => $('gpsMsg').textContent = 'GPS: ' + (e.code === 1 ? 'permiso denegado. Actívalo en los ajustes del navegador.' : 'sin señal todavía.'), { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+  };
+  const lockScreen = async () => { try { wake = await navigator.wakeLock?.request('screen') } catch {} };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && st.state === 'run') lockScreen() });
+  startGps();
+
+  let sender = null;
+  $('startBtn').onclick = () => {
+    if (st.state === 'idle') { st.start = Date.now(); sendProfile() }
+    st.state = 'run'; st.lastTick = Date.now(); st.last = null;
+    $('rLive').textContent = 'En directo'; $('rLive').classList.add('on');
+    $('startBtn').classList.add('hidden'); $('pauseBtn').classList.remove('hidden'); $('endBtn').classList.remove('hidden');
+    if (me) me.setIcon(avatarIcon(face, name, true));
+    lockScreen(); send(); sender ??= setInterval(() => send(), SEND_EVERY);
+    if ('speechSynthesis' in window) speechSynthesis.speak(new SpeechSynthesisUtterance('Carrera iniciada. ¡A por ello!'));
+  };
+  $('pauseBtn').onclick = () => {
+    st.moving += Date.now() - st.lastTick; st.state = 'pausa';
+    $('rLive').textContent = 'En pausa'; $('rLive').classList.remove('on');
+    $('pauseBtn').classList.add('hidden'); $('startBtn').classList.remove('hidden'); $('startBtn').textContent = 'Continuar';
+    if (me) me.setIcon(avatarIcon(face, name, false)); send();
+  };
+  $('endBtn').onclick = () => {
+    if (st.state === 'run') st.moving += Date.now() - st.lastTick;
+    st.state = 'fin'; clearInterval(sender); send(true); wake?.release?.();
+    if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    $('rLive').textContent = 'Terminada'; $('rLive').classList.remove('on');
+    ['startBtn', 'pauseBtn', 'endBtn'].forEach(b => $(b).classList.add('hidden'));
+    if (line.getLatLngs().length > 1) map.fitBounds(line.getBounds(), { padding: [20, 20] });
+  };
+
+  // ánimos recibidos
+  subscribe(`estela-${id}-animos`, Math.floor(Date.now() / 1000), m => {
+    const from = (m.title || '').replace(/^📣\s*/, '') || 'Alguien';
+    toast(from, m.message);
+    $('rFeed').insertAdjacentHTML('afterbegin', `<li><b>${esc(from)}:</b> ${esc(m.message)}</li>`);
+    navigator.vibrate?.([200, 100, 200]);
+    if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(`${from} dice: ${m.message}`); u.lang = 'es-ES'; speechSynthesis.speak(u) }
+  });
+
+  // pulsómetro Bluetooth
+  $('hrBtn').onclick = async () => {
+    if (!navigator.bluetooth) { $('hrBtn').textContent = 'Este navegador no admite Bluetooth'; return }
+    try {
+      const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: ['heart_rate'] }] });
+      const ch = await (await (await dev.gatt.connect()).getPrimaryService('heart_rate')).getCharacteristic('heart_rate_measurement');
+      ch.addEventListener('characteristicvaluechanged', e => { const v = e.target.value; st.hr = v.getUint8(0) & 1 ? v.getUint16(1, true) : v.getUint8(1) });
+      await ch.startNotifications(); $('hrBtn').textContent = `Conectado: ${dev.name || 'pulsómetro'}`;
+      dev.addEventListener('gattserverdisconnected', () => { st.hr = null; $('hrBtn').textContent = 'Reconectar pulsómetro' });
+    } catch { $('hrBtn').textContent = 'No se pudo conectar. Reintentar' }
+  };
+}
+
+// ---------- espectador ----------
+function watcher(id, demo) {
+  $('watch').classList.remove('hidden');
+  const map = makeMap('map', [41.6466, -4.7305]);
+  const trail = L.polyline([], { color: '#ff4d1f', weight: 6, opacity: .9 }).addTo(map);
+  const glow = L.polyline([], { color: '#ffb21f', weight: 14, opacity: .25 }).addTo(map);
+  let marker = null, face = '', name = '', state = 'idle', last = null, follow = true, lastMsgAt = 0, flip = false;
+  const queue = []; let animFrom = null, animTo = null, animT0 = 0, animDur = 0;
+  map.on('dragstart', () => follow = false);
+  watcher.setLast = t => lastMsgAt = t;
+
+  const setStats = d => {
+    last = { ...d, at: Date.now() };
+    $('sKm').textContent = fmtKm(d.m); $('sPace').textContent = fmtPace(d.pace); $('sKcal').textContent = d.kcal; $('sHr').textContent = d.hr ?? '–';
+  };
+  const icon = () => avatarIcon(face, name, state === 'run', flip);
+  setInterval(() => {
+    if (last) $('sTime').textContent = fmtTime(last.el + (state === 'run' ? (Date.now() - last.at) / 1000 : 0));
+    const ago = lastMsgAt ? Math.round((Date.now() - lastMsgAt) / 1000) : null;
+    const on = state === 'run' && ago != null && ago < 90;
+    $('wLive').className = 'live' + (on ? ' on' : '');
+    $('wLive').textContent = state === 'fin' ? 'Terminada' : state === 'pausa' ? 'En pausa' : on ? 'En directo' : 'Sin señal';
+    $('wAgo').textContent = ago == null ? 'Esperando a que empiece la carrera' : state === 'fin' ? '¡Ha llegado a meta!' : `Actualizado hace ${ago} s`;
+  }, 1000);
+
+  // reproduce los puntos de cada lote poco a poco para que el monigote se mueva con suavidad
+  const step = () => {
+    const now = performance.now();
+    if (animTo && now - animT0 < animDur) {
+      const k = (now - animT0) / animDur, p = [animFrom[0] + (animTo[0] - animFrom[0]) * k, animFrom[1] + (animTo[1] - animFrom[1]) * k];
+      marker.setLatLng(p);
+    } else if (queue.length) {
+      const nxt = queue.shift(); const from = marker ? marker.getLatLng() : null;
+      if (!marker) { marker = L.marker(nxt, { icon: icon(), zIndexOffset: 1000 }).addTo(map); map.setView(nxt, 16) }
+      animFrom = from ? [from.lat, from.lng] : nxt; animTo = nxt; animT0 = now;
+      animDur = Math.max(300, SEND_EVERY / Math.max(1, queue.length + 1) * .95);
+      const nf = animTo[1] < animFrom[1]; if (nf !== flip) { flip = nf; marker.setIcon(icon()) }
+      trail.addLatLng(nxt); glow.addLatLng(nxt);
+      if (follow) map.panTo(nxt, { animate: true, duration: .8 });
+    } else if (animTo && marker) { marker.setLatLng(animTo); animTo = null }
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+
+  const handle = (d, catchUp) => {
+    if (d.t === 'perfil') { face = d.f || ''; name = d.n || 'Corredor'; $('wName').textContent = name; if (face) $('wFace').src = face; if (marker) marker.setIcon(icon()); return }
+    if (d.t !== 'p') return;
+    if (!name) { name = d.n; $('wName').textContent = name }
+    const prev = state; state = d.st;
+    if (catchUp) { (d.pts || []).forEach(p => { trail.addLatLng(p); glow.addLatLng(p) }); const lp = d.pts?.at(-1); if (lp) { if (!marker) marker = L.marker(lp, { icon: icon(), zIndexOffset: 1000 }).addTo(map); else marker.setLatLng(lp); animTo = null } }
+    else (d.pts || []).forEach(p => queue.push([p[0], p[1]]));
+    setStats(d);
+    if (prev !== state && marker) marker.setIcon(icon());
+    if (state === 'fin' && trail.getLatLngs().length > 1) setTimeout(() => map.fitBounds(trail.getBounds(), { padding: [40, 40] }), catchUp ? 0 : SEND_EVERY);
+  };
+
+  // ánimos
+  const quick = ['¡Vamos!', '¡Tú puedes!', '¡Qué ritmazo!', '¡Último empujón!', '¡Te estamos viendo!'];
+  $('quick').innerHTML = quick.map(q => `<button type="button" class="alt">${q}</button>`).join('');
+  $('fromIn').value = store.get('estela.from', '');
+  const cheer = async text => {
+    const from = $('fromIn').value.trim() || 'Un amigo'; store.set('estela.from', from);
+    if (demo) { toast('Enviado a ' + (name || 'Dani'), text); return }
+    try { await publish(`estela-${id}-animos`, text, { title: `📣 ${from}`, tags: ['runner'], priority: 4 }); toast('Enviado', text) }
+    catch { toast('Error', 'No se pudo enviar') }
+  };
+  $('quick').onclick = e => { if (e.target.tagName === 'BUTTON') cheer(e.target.textContent) };
+  $('cheerForm').onsubmit = e => { e.preventDefault(); const t = $('msgIn').value.trim(); if (t) { cheer(t); $('msgIn').value = '' } };
+
+  if (demo) return runDemo(handle);
+  // al conectar llega el historial (ntfy guarda 12 h); los mensajes de los primeros 2 s se tratan como «ponerse al día»
+  const t0 = Date.now();
+  subscribe(`estela-${id}`, 'all', m => {
+    lastMsgAt = m.time * 1000;
+    try { handle(JSON.parse(m.message), Date.now() - t0 < 2000) } catch {}
+  });
+}
+
+// ---------- demo: corredor simulado ----------
+function runDemo(handle) {
+  const c = [41.6466, -4.7305], route = [];
+  for (let i = 0; i <= 400; i++) { const a = i / 400 * Math.PI * 2; route.push([c[0] + .0042 * Math.sin(a) + .0007 * Math.sin(5 * a), c[1] + .0058 * Math.cos(a) + .0006 * Math.cos(3 * a)]) }
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 72'><rect width='72' height='72' fill='#ffb21f'/><circle cx='36' cy='30' r='14' fill='#7a4a2a'/><rect x='14' y='48' width='44' height='30' rx='14' fill='#7a4a2a'/></svg>`;
+  handle({ t: 'perfil', n: 'Dani (demo)', f: 'data:image/svg+xml,' + encodeURIComponent(svg) });
+  let i = 0, m = 0, el = 0; const start = 30;
+  const hist = route.slice(0, start); for (let k = 1; k < start; k++) m += dist(route[k - 1], route[k]);
+  el = m / 3.2; i = start;
+  handle({ t: 'p', st: 'run', el, m, pace: 312, kcal: kcalOf(m, 70), hr: 148, pts: hist }, true);
+  const quickMsgs = [['Laura', '¡Vamos Dani, qué ritmazo!'], ['Marcos', '¡Ese último kilómetro!'], ['Mamá', 'Estoy viéndote desde casa ❤']]; let qi = 0, ticks = 0;
+  setInterval(() => {
+    const pts = route.slice(i, i + 4); if (!pts.length) return; for (let k = 0; k < pts.length; k++) m += dist(route[i + k - 1] || pts[0], pts[k]); i += 4; el += SEND_EVERY / 1000;
+    watcher.setLast?.(Date.now());
+    handle({ t: 'p', st: i >= route.length ? 'fin' : 'run', el, m, pace: 300 + Math.round(Math.random() * 25), kcal: kcalOf(m, 70), hr: 145 + Math.round(Math.random() * 12), pts });
+    if (++ticks % 3 === 1) { const [f, t] = quickMsgs[qi++ % quickMsgs.length]; toast(f + ' animó a Dani', t) }
+  }, SEND_EVERY);
+}
+
+// ---------- arranque ----------
+const id = (qs.get('c') || '').replace(/[^a-z0-9]/g, '');
+if (qs.get('demo')) { watcher('demo', true); watcher.setLast(Date.now()) } // setLast se define dentro de watcher
+else if (id && qs.get('modo') === 'corredor') runner(id);
+else if (id) watcher(id, false);
+else home();
+}
+</script>
+</body>
