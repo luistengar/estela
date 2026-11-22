@@ -72,6 +72,13 @@ code{font-size:14px;background:var(--bg);padding:2px 6px;border-radius:6px;overf
 @keyframes sw{from{transform:rotate(-28deg)}to{transform:rotate(28deg)}}
 @media(prefers-reduced-motion:reduce){.av *{animation:none!important}.toast{animation:none}}
 .leaflet-div-icon{background:none;border:0}
+.hist{list-style:none;margin:0;padding:0}
+.hist li{display:flex;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.hist li:last-child{border-bottom:0}
+.hist .info{flex:1}.hist .info b{font:800 20px "Barlow Condensed",sans-serif}
+.hist button{min-height:40px;padding:0 12px;font-size:14px}
+.sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;text-align:center;margin:10px 0 14px}
+.sum div{background:var(--bg);border-radius:12px;padding:8px 4px}.sum .num{font-size:26px;line-height:1.1}.sum small{display:block;font-size:13px;color:var(--mute)}
 </style>
 </head>
 <body>
@@ -98,6 +105,11 @@ code{font-size:14px;background:var(--bg);padding:2px 6px;border-radius:6px;overf
     <label for="kgIn">Peso en kg (para estimar calorías)</label><input id="kgIn" type="number" inputmode="decimal" value="70" min="30" max="200">
     <div style="margin-top:16px"><button id="createBtn" style="width:100%">Crear carrera</button></div>
   </div>
+  <div id="histCard" class="card hidden" style="margin-top:14px">
+    <h2>Mis carreras</h2>
+    <p class="small">Se guardan en este móvil. Descarga el GPX para subirlo a Strava.</p>
+    <ul id="histList" class="hist"></ul>
+  </div>
   <p class="small" style="margin-top:16px">¿Solo quieres ver cómo queda? <a href="?demo=1">Abre la demo</a>: un corredor simulado por el Campo Grande de Valladolid.</p>
 </section>
 
@@ -117,6 +129,16 @@ code{font-size:14px;background:var(--bg);padding:2px 6px;border-radius:6px;overf
     <button id="startBtn">Empezar</button>
     <button id="pauseBtn" class="alt hidden">Pausar</button>
     <button id="endBtn" class="dark hidden">Terminar</button>
+  </div>
+  <div id="doneCard" class="card hidden" style="margin-bottom:12px">
+    <h2>¡Carrera terminada!</h2>
+    <div class="sum" id="doneSum"></div>
+    <div class="row">
+      <button id="gpxBtn">Descargar GPX</button>
+      <button id="stravaBtn" class="dark">Subir a Strava</button>
+    </div>
+    <p class="small" style="margin-top:10px">«Subir a Strava» descarga el archivo y abre la página de subida de Strava, donde lo eliges. Desde el ordenador es lo más cómodo: también la tienes guardada en «Mis carreras».</p>
+    <p class="small"><a href="./">Volver al inicio</a></p>
   </div>
   <div id="rmap"></div>
   <p id="gpsMsg" class="small">Antes de empezar, deja que el móvil encuentre señal GPS al aire libre.</p>
@@ -214,6 +236,33 @@ function toast(from, text) {
   document.body.appendChild(t); setTimeout(() => t.remove(), 5000);
 }
 
+// ---------- historial y GPX ----------
+const hist = { all() { try { return JSON.parse(store.get('estela.history', '[]')) } catch { return [] } }, save(list) { store.set('estela.history', JSON.stringify(list)) } };
+function gpxOf(run) {
+  const iso = t => new Date(t).toISOString();
+  const pts = run.track.map(p => `<trkpt lat="${p[0]}" lon="${p[1]}">${p[4] != null ? `<ele>${p[4]}</ele>` : ''}<time>${iso(p[2])}</time>${p[3] ? `<extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>${p[3]}</gpxtpx:hr></gpxtpx:TrackPointExtension></extensions>` : ''}</trkpt>`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Estela" xmlns="http://www.topografix.com/GPX/1/1" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">
+<metadata><time>${iso(run.start)}</time></metadata>
+<trk><name>${esc(run.title)}</name><type>running</type><trkseg>
+${pts}
+</trkseg></trk></gpx>`;
+}
+function downloadGpx(run) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([gpxOf(run)], { type: 'application/gpx+xml' }));
+  a.download = `estela-${new Date(run.start).toISOString().slice(0, 16).replace(/[:T]/g, '-')}.gpx`;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove() }, 2000);
+}
+const runTitle = t => { const h = new Date(t).getHours(); return h < 12 ? 'Carrera matutina' : h < 20 ? 'Carrera de tarde' : 'Carrera nocturna' };
+const fmtDate = t => new Date(t).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' }) + ' · ' + new Date(t).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+function renderHistory() {
+  const list = hist.all();
+  $('histCard').classList.toggle('hidden', !list.length);
+  $('histList').innerHTML = list.map((r, i) => `<li><div class="info"><b>${fmtKm(r.m)} km</b> · ${fmtTime(r.el)} · ${fmtPace(r.m > 0 ? r.el / (r.m / 1000) : 0)}/km<div class="small">${fmtDate(r.start)}</div></div>
+    <button class="alt" data-gpx="${i}">GPX</button><button class="alt" data-del="${i}" aria-label="Borrar">✕</button></li>`).join('');
+}
+
 // ---------- portada ----------
 function home() {
   $('home').classList.remove('hidden');
@@ -221,6 +270,12 @@ function home() {
   if (face) $('facePrev').src = face;
   $('nameIn').value = store.get('estela.name', '');
   $('kgIn').value = store.get('estela.kg', '70');
+  renderHistory();
+  $('histList').onclick = e => {
+    const b = e.target.closest('button'); if (!b) return; const list = hist.all();
+    if (b.dataset.gpx) downloadGpx(list[+b.dataset.gpx]);
+    if (b.dataset.del) { if (b.dataset.sure) { list.splice(+b.dataset.del, 1); hist.save(list); renderHistory() } else { b.dataset.sure = 1; b.textContent = '¿Borrar?'; setTimeout(() => { b.textContent = '✕'; delete b.dataset.sure }, 3000) } }
+  };
   $('faceIn').onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
     const img = await createImageBitmap(f); const S = 72, c = document.createElement('canvas'); c.width = c.height = S;
@@ -246,12 +301,28 @@ function runner(id) {
 
   const map = makeMap('rmap', [41.6523, -4.7245]);
   const line = L.polyline([], { color: '#ff4d1f', weight: 5 }).addTo(map); let me = null;
-  const st = { state: 'idle', start: 0, moving: 0, lastTick: 0, meters: 0, last: null, pts: [], buf: [], hr: null, recent: [] };
+  const st = { state: 'idle', start: 0, moving: 0, lastTick: 0, meters: 0, last: null, buf: [], hr: null, recent: [], track: [], hiddenAt: 0 };
   let watchId = null, wake = null;
+  const KEY = 'estela.run.' + id;
+  const movingNow = () => st.moving + (st.state === 'run' ? Date.now() - st.lastTick : 0);
+  // guarda la carrera en curso en el móvil: si Safari recarga la página, no se pierde
+  const persist = () => store.set(KEY, JSON.stringify({ state: st.state, start: st.start, moving: movingNow(), meters: st.meters, track: st.track }));
+  try {
+    const saved = JSON.parse(store.get(KEY, 'null'));
+    if (saved && saved.state !== 'fin' && saved.state !== 'idle') {
+      Object.assign(st, { state: 'pausa', start: saved.start, moving: saved.moving, meters: saved.meters, track: saved.track || [] });
+      st.track.forEach(p => line.addLatLng([p[0], p[1]]));
+      if (st.track.length) map.setView(st.track.at(-1).slice(0, 2), 16);
+      setTimeout(() => {
+        $('rLive').textContent = 'En pausa'; $('startBtn').textContent = 'Continuar'; $('endBtn').classList.remove('hidden');
+        $('gpsMsg').textContent = 'Hemos recuperado tu carrera. Pulsa «Continuar» para seguir grabando.';
+      });
+    }
+  } catch {}
 
   const stats = () => {
     const now = Date.now();
-    const el = st.moving + (st.state === 'run' ? now - st.lastTick : 0);
+    const el = movingNow();
     const w = st.recent.filter(p => now - p[2] < 60000);
     const pace = w.length > 1 ? (() => { let d = 0; for (let i = 1; i < w.length; i++) d += dist(w[i - 1], w[i]); return d > 25 ? (w.at(-1)[2] - w[0][2]) / 1000 / (d / 1000) : 0 })() : 0;
     return { el: el / 1000, m: st.meters, pace, kcal: kcalOf(st.meters, kg), hr: st.hr };
@@ -260,7 +331,7 @@ function runner(id) {
   setInterval(render, 1000);
 
   const send = async (final) => {
-    const s = stats();
+    persist(); const s = stats();
     const body = JSON.stringify({ t: 'p', n: name, st: final ? 'fin' : st.state, el: Math.round(s.el), m: Math.round(s.m), pace: Math.round(s.pace), kcal: s.kcal, hr: s.hr, pts: st.buf.splice(0) });
     try { await publish(`estela-${id}`, body); $('gpsMsg').textContent = `Enviado a las ${new Date().toLocaleTimeString('es-ES')}.` }
     catch (e) { $('gpsMsg').textContent = 'No se pudo enviar (¿sin cobertura o límite de ntfy?). Se reintentará.' }
@@ -271,10 +342,12 @@ function runner(id) {
     const { latitude: la, longitude: lo, accuracy: acc } = p.coords;
     if (acc > 35) { $('gpsMsg').textContent = `Buscando mejor señal GPS (±${Math.round(acc)} m)…`; return }
     const pt = [+la.toFixed(6), +lo.toFixed(6), Date.now()];
+    const alt = p.coords.altitude != null ? Math.round(p.coords.altitude * 10) / 10 : null;
     if (!me) { me = L.marker(pt, { icon: avatarIcon(face, name, false) }).addTo(map); map.setView(pt, 16) } else me.setLatLng(pt);
     if (st.state !== 'run') return;
     if (st.last) { const d = dist(st.last, pt); if (d < 3) return; if (d / ((pt[2] - st.last[2]) / 1000) > 12) return; st.meters += d }
-    st.last = pt; st.recent.push(pt); if (st.recent.length > 60) st.recent.shift();
+    st.last = pt; st.recent.push(pt);
+    if (!st.track.length || pt[2] - st.track.at(-1)[2] >= 2000) st.track.push([pt[0], pt[1], pt[2], st.hr, alt]); if (st.recent.length > 60) st.recent.shift();
     if (!st.buf.length || pt[2] - st.buf.at(-1)[2] >= SAMPLE_EVERY) { st.buf.push(pt); line.addLatLng(pt) }
     map.panTo(pt, { animate: true });
   };
@@ -283,7 +356,13 @@ function runner(id) {
     watchId ??= navigator.geolocation.watchPosition(onPos, e => $('gpsMsg').textContent = 'GPS: ' + (e.code === 1 ? 'permiso denegado. Actívalo en los ajustes del navegador.' : 'sin señal todavía.'), { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
   };
   const lockScreen = async () => { try { wake = await navigator.wakeLock?.request('screen') } catch {} };
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && st.state === 'run') lockScreen() });
+  document.addEventListener('visibilitychange', () => {
+    if (st.state !== 'run') return;
+    if (document.visibilityState === 'hidden') { st.hiddenAt = Date.now(); persist(); return }
+    lockScreen();
+    const gone = st.hiddenAt ? Date.now() - st.hiddenAt : 0; st.hiddenAt = 0;
+    if (gone > 30000) toast('Aviso', `Has salido ${Math.round(gone / 60000) || 1} min: en ese tramo el GPS no ha grabado`);
+  });
   startGps();
 
   let sender = null;
@@ -297,7 +376,7 @@ function runner(id) {
     if ('speechSynthesis' in window) speechSynthesis.speak(new SpeechSynthesisUtterance('Carrera iniciada. ¡A por ello!'));
   };
   $('pauseBtn').onclick = () => {
-    st.moving += Date.now() - st.lastTick; st.state = 'pausa';
+    st.moving += Date.now() - st.lastTick; st.state = 'pausa'; persist();
     $('rLive').textContent = 'En pausa'; $('rLive').classList.remove('on');
     $('pauseBtn').classList.add('hidden'); $('startBtn').classList.remove('hidden'); $('startBtn').textContent = 'Continuar';
     if (me) me.setIcon(avatarIcon(face, name, false)); send();
@@ -305,6 +384,17 @@ function runner(id) {
   $('endBtn').onclick = () => {
     if (st.state === 'run') st.moving += Date.now() - st.lastTick;
     st.state = 'fin'; clearInterval(sender); send(true); wake?.release?.();
+    const s = stats();
+    const run = { id, title: runTitle(st.start || Date.now()), start: st.start || Date.now(), el: Math.round(s.el), m: Math.round(st.meters), kcal: s.kcal, track: st.track };
+    if (run.track.length > 1) { const list = hist.all(); list.unshift(run); hist.save(list.slice(0, 50)) }
+    try { localStorage.removeItem(KEY) } catch {}
+    $('doneSum').innerHTML = `<div><span class="num">${fmtKm(run.m)}</span><small>km</small></div><div><span class="num">${fmtTime(run.el)}</span><small>tiempo</small></div><div><span class="num">${fmtPace(run.m > 0 ? run.el / (run.m / 1000) : 0)}</span><small>ritmo /km</small></div>`;
+    $('doneCard').classList.remove('hidden');
+    const ok = run.track.length > 1;
+    $('gpxBtn').disabled = $('stravaBtn').disabled = !ok;
+    if (!ok) $('gpsMsg').textContent = 'No se grabaron puntos GPS, así que no hay recorrido que exportar.';
+    $('gpxBtn').onclick = () => downloadGpx(run);
+    $('stravaBtn').onclick = () => { downloadGpx(run); setTimeout(() => location.href = 'https://www.strava.com/upload/select', 800) };
     if (watchId != null) navigator.geolocation.clearWatch(watchId);
     $('rLive').textContent = 'Terminada'; $('rLive').classList.remove('on');
     ['startBtn', 'pauseBtn', 'endBtn'].forEach(b => $(b).classList.add('hidden'));
